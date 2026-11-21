@@ -1,0 +1,49 @@
+#!/bin/sh
+# Octop SPK pre-install script
+# 检查 Docker、架构、端口占用
+
+set -e
+
+PKG_NAME="Octop"
+SYNOPKG_PKGDEST="/var/packages/${PKG_NAME}"
+
+# 检查架构
+ARCH=$(uname -m)
+case "${ARCH}" in
+    x86_64|aarch64)
+        ;;
+    *)
+        echo "不支持的架构: ${ARCH}，仅支持 x86_64 和 aarch64"
+        exit 1
+        ;;
+esac
+
+# 检查 Docker
+if ! command -v docker >/dev/null 2>&1; then
+    echo "未检测到 Docker，请先在套件中心安装 Docker 套件"
+    exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+    echo "Docker 守护进程未运行，请启动 Docker 套件"
+    exit 1
+fi
+
+# 检查 docker compose v2
+if ! docker compose version >/dev/null 2>&1; then
+    echo "需要 docker compose v2（Docker 20.10+ 自带），请升级 Docker"
+    exit 1
+fi
+
+# 检查端口占用（从向导获取）
+PORT=${wizard_port:-8088}
+if ss -ltn 2>/dev/null | grep -q ":${PORT} "; then
+    echo "端口 ${PORT} 已被占用，请在安装向导中指定其他端口"
+    exit 1
+fi
+
+# 创建数据目录
+mkdir -p "${SYNOPKG_PKGDEST}/data"
+mkdir -p "${SYNOPKG_PKGDEST}/conf"
+
+exit 0

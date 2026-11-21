@@ -1,0 +1,22 @@
+#!/bin/sh
+# Octop SPK pre-uninstall script
+# 停止容器，备份关键配置
+
+set -e
+
+PKG_NAME="Octop"
+SYNOPKG_PKGDEST="/var/packages/${PKG_NAME}"
+TARGET_DIR="${SYNOPKG_PKGDEST}/target"
+
+# 卸载前停止容器
+if [ -f "${TARGET_DIR}/docker-compose.yml" ]; then
+    cd "${TARGET_DIR}"
+    docker compose down --remove-orphans 2>/dev/null || true
+fi
+
+# 备份 .env 到 conf 目录（升级时保留）
+if [ -f "${TARGET_DIR}/.env" ]; then
+    cp -f "${TARGET_DIR}/.env" "${SYNOPKG_PKGDEST}/conf/.env.backup" 2>/dev/null || true
+fi
+
+exit 0

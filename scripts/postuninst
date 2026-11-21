@@ -1,0 +1,17 @@
+#!/bin/sh
+# Octop SPK post-uninstall script
+# 清理残留资源，保留用户数据
+
+set -e
+
+PKG_NAME="Octop"
+
+# 删除容器网络（如果存在且无其他容器使用）
+docker network rm octop_default 2>/dev/null || true
+
+# 可选：删除镜像（注释掉保留镜像加速重装）
+# docker rmi ghcr.io/tencentcloud/octop:latest 2>/dev/null || true
+
+# 不删除数据目录，保留用户数据
+
+exit 0

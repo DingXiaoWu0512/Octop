@@ -1,0 +1,68 @@
+#!/bin/sh
+# Octop SPK post-install script
+# 生成 .env、拉取镜像、启动容器
+
+set -e
+
+PKG_NAME="Octop"
+SYNOPKG_PKGDEST="/var/packages/${PKG_NAME}"
+TARGET_DIR="${SYNOPKG_PKGDEST}/target"
+DATA_DIR="${SYNOPKG_PKGDEST}/data"
+CONF_DIR="${SYNOPKG_PKGDEST}/conf"
+
+# 从向导获取参数
+PORT=${wizard_port:-8088}
+ADMIN_USER=${wizard_admin_user:-admin}
+ADMIN_PASS=${wizard_admin_pass:-}
+ADMIN_PASS_CONFIRM=${wizard_admin_pass_confirm:-}
+DB_TYPE=${wizard_db_type:-sqlite}
+OPENAI_KEY=${wizard_openai_key:-}
+DASHSCOPE_KEY=${wizard_dashscope_key:-}
+
+# 密码确认校验
+if [ -n "$ADMIN_PASS" ] && [ "$ADMIN_PASS" != "$ADMIN_PASS_CONFIRM" ]; then
+    echo "两次输入的密码不一致"
+    exit 1
+fi
+
+# 复制 compose 文件到 target
+cp -f "${SYNOPKG_PKGDEST}/docker-compose.yml" "${TARGET_DIR}/docker-compose.yml"
+
+# 生成 .env 文件
+cat > "${CONF_DIR}/.env" << EOF
+# Octop 环境变量（由 SPK 安装向导生成）
+OCTOP_PORT=${PORT}
+OCTOP_ADMIN_USERNAME=${ADMIN_USER}
+OCTOP_DEFAULT_PASSWORD=${ADMIN_PASS}
+OCTOP_DATABASE_DRIVER=${DB_TYPE}
+OCTOP_LOG_LEVEL=info
+OPENAI_API_KEY=${OPENAI_KEY}
+DASHSCOPE_API_KEY=${DASHSCOPE_KEY}
+# 数据卷映射到套件数据目录
+OCTOP_DATA=${DATA_DIR}/.octop
+EOF
+
+# 确保数据目录存在
+mkdir -p "${DATA_DIR}/.octop"
+
+# 拉取镜像（使用官方预构建镜像）
+cd "${TARGET_DIR}"
+docker compose pull 2>/dev/null || true
+
+# 启动容器
+docker compose up -d
+
+# 等待健康检查通过（最多 120 秒）
+echo "等待 Octop 启动..."
+for i in $(seq 1 24); do
+    if docker compose ps 2>/dev/null | grep -q "healthy\|running"; then
+        echo "Octop 启动成功"
+        break
+    fi
+    sleep 5
+done
+
+# 写入版本信息供升级脚本使用
+echo "0.0.1" > "${CONF_DIR}/VERSION"
+
+exit 0

@@ -1,0 +1,55 @@
+#!/bin/sh
+# Octop SPK start-stop-status script
+# DSM 套件中心“运行/停止/重启/状态”按钮调用
+
+set -e
+
+PKG_NAME="Octop"
+SYNOPKG_PKGDEST="/var/packages/${PKG_NAME}"
+TARGET_DIR="${SYNOPKG_PKGDEST}/target"
+
+case "$1" in
+    start)
+        if [ -f "${TARGET_DIR}/docker-compose.yml" ]; then
+            cd "${TARGET_DIR}"
+            docker compose up -d
+            # 等待健康
+            for i in $(seq 1 12); do
+                if docker compose ps 2>/dev/null | grep -q "healthy\|running"; then
+                    exit 0
+                fi
+                sleep 5
+            done
+            echo "启动超时"
+            exit 1
+        fi
+        ;;
+    stop)
+        if [ -f "${TARGET_DIR}/docker-compose.yml" ]; then
+            cd "${TARGET_DIR}"
+            docker compose down
+        fi
+        ;;
+    restart)
+        $0 stop
+        $0 start
+        ;;
+    status)
+        if [ -f "${TARGET_DIR}/docker-compose.yml" ]; then
+            cd "${TARGET_DIR}"
+            if docker compose ps 2>/dev/null | grep -q "Up"; then
+                exit 0
+            else
+                exit 1
+            fi
+        else
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0

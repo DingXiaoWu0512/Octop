@@ -1,0 +1,83 @@
+name: Build Synology SPK
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: '目标架构'
+        type: choice
+        options: [x86_64, aarch64, all]
+        default: all
+      iter:
+        description: '迭代号 (可选)'
+        type: string
+        required: false
+
+  release:
+    types: [published]
+
+jobs:
+  build-spk:
+    name: Build SPK (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python (for version parsing)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+            tar gzip
+
+      - name: Build SPK
+        env:
+          SPK_NAME_PREFIX: Octop
+          SPK_ARCH: ${{ matrix.arch }}
+          SPK_ITER: ${{ github.event.inputs.iter || '' }}
+        run: |
+          bash scripts/build-spk.sh ${{ matrix.arch }}
+
+      - name: Upload SPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Octop-spk-${{ matrix.arch }}
+          path: dist/*.spk
+          retention-days: 30
+
+  release-spk:
+    name: Attach SPK to Release
+    if: github.event_name == 'release'
+    needs: build-spk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all SPK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: Octop-spk-*
+          merge-multiple: true
+
+      - name: List SPK files
+        run: ls -la dist/
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.spk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
